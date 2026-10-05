@@ -1,7 +1,7 @@
 'use strict';
 
-const $ = s => document.querySelector(s);
-const $$ = s => [...document.querySelectorAll(s)];
+// React Setup and Core Primitives
+const { useState, useEffect, useRef, useCallback, useMemo, createElement: h, Fragment } = window.React || {};
 
 const icons = {
   code: 'm16 18 6-6-6-6M8 6l-6 6 6 6m6-16-4 20',
@@ -32,11 +32,13 @@ const icons = {
   trophy: 'M6 9V3h12v6a6 6 0 0 1-6 6 6 6 0 0 1-6-6zm0-4H2v3a4 4 0 0 0 4 4zm12 0h4v3a4 4 0 0 1-4 4zM9 21h6m-3-6v6'
 };
 
-function drawIcons(root = document) {
-  root.querySelectorAll('[data-icon]').forEach(el => {
-    const path = icons[el.dataset.icon] ?? icons.code;
-    el.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${path}"/></svg>`;
-  });
+function Icon({ name, className = '' }) {
+  const path = icons[name] || icons.code;
+  return h('svg', {
+    viewBox: '0 0 24 24',
+    className: `icon icon-${name} ${className}`,
+    'aria-hidden': true
+  }, h('path', { d: path }));
 }
 
 const escapeHTML = s => String(s).replace(/[&<>"']/g, c => ({
@@ -166,32 +168,6 @@ const exampleData = {
   }
 };
 
-let definition = {
-  name: 'Nova',
-  extension: 'nova',
-  keywords: { ...LangLab.defaults },
-  version: '1.0.0'
-};
-let activeExample = 'welcome';
-let activeFilter = 'all';
-
-let worker = null, workerURL = null, runTimer = null, toastTimer = null, saveTimer = null, pendingResolve = null;
-let engineSourcePromise = null, runGeneration = 0;
-let soundEnabled = true;
-try {
-  const savedSound = localStorage.getItem('langlab-sound');
-  if (savedSound !== null) soundEnabled = savedSound === 'true';
-} catch {}
-
-const pageInfo = {
-  playground: ['Your language. Your rules.', 'Give your ideas a syntax. Then bring them to life.', 'Playground'],
-  rules: ['Make it speak your language.', 'The same possibilities. Words that feel like you.', 'Language rules'],
-  examples: ['Small programs. Big possibilities.', 'Pick a starting point and see what your language can do.', 'Examples'],
-  downloads: ['Your language, to go.', 'Keep creating on your computer, even without the internet.', 'Download & run'],
-  reference: ['A guide to your language.', 'Everything you need to turn an idea into a program.', 'Language guide']
-};
-
-/* --- MASCOT COMPANION SYSTEM --- */
 const mascotPoses = {
   idle: 'assets/robot.png',
   coding: 'assets/coding.png',
@@ -214,43 +190,15 @@ const codingTips = [
   'Every run runs in a safe, sandboxed worker with execution and recursion protection.',
   'Try the FizzBuzz example to see how conditionals and for-loops work together!'
 ];
-let tipIndex = 0;
 
-function setMascotMood(poseKey, speechText, badgeText = 'READY', animClass = 'mascot-floating') {
-  const img = $('#mascot-img');
-  const speech = $('#mascot-speech');
-  const badge = $('#mascot-badge');
-  const pillText = $('#mascot-mood-text');
-  const pill = $('#mascot-mood-pill');
-
-  if (img) {
-    img.src = mascotPoses[poseKey] ?? mascotPoses.idle;
-    img.className = 'mascot-img ' + animClass;
-  }
-  if (speech && speechText) {
-    speech.textContent = speechText;
-    speech.classList.remove('speech-pop');
-    void speech.offsetWidth; // trigger reflow
-    speech.classList.add('speech-pop');
-  }
-  if (badge && badgeText) {
-    badge.textContent = badgeText;
-    badge.className = 'mascot-mood-badge ' + (badgeText === 'RUNNING' ? 'badge-running' : badgeText === 'SUCCESS' ? 'badge-success' : badgeText === 'CHECK CODE' ? 'badge-error' : '');
-  }
-  if (pillText && badgeText) {
-    pillText.textContent = badgeText === 'RUNNING' ? 'Byte is running code...' : badgeText === 'SUCCESS' ? 'Byte: Success! 🎉' : badgeText === 'CHECK CODE' ? 'Byte: Check error ⚠️' : 'Byte is ready!';
-  }
-  if (pill) {
-    const dot = pill.querySelector('.mood-indicator');
-    if (dot) {
-      dot.className = 'mood-indicator ' + (badgeText === 'RUNNING' ? 'pulse-amber' : badgeText === 'SUCCESS' ? 'pulse-green' : badgeText === 'CHECK CODE' ? 'pulse-red' : 'pulse-green');
-    }
-  }
+function remap(source, oldWords, newWords) {
+  const mapping = new Map(Object.keys(oldWords).map(k => [oldWords[k], newWords[k]]));
+  return source.replace(/#[^\n]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[\p{L}_][\p{L}\p{M}\p{N}_]*/gu, word => mapping.get(word) ?? word);
 }
 
-/* --- WEB AUDIO SYNTHESIZER --- */
+// Audio Synthesizer
 let audioCtx = null;
-function playSound(type) {
+function playSound(type, soundEnabled = true) {
   if (!soundEnabled) return;
   try {
     if (!audioCtx) {
@@ -258,9 +206,7 @@ function playSound(type) {
       if (!AudioContextClass) return;
       audioCtx = new AudioContextClass();
     }
-    if (audioCtx.state === 'suspended') {
-      audioCtx.resume();
-    }
+    if (audioCtx.state === 'suspended') audioCtx.resume();
     const now = audioCtx.currentTime;
     if (type === 'run') {
       const osc = audioCtx.createOscillator();
@@ -275,8 +221,7 @@ function playSound(type) {
       osc.start(now);
       osc.stop(now + 0.09);
     } else if (type === 'success') {
-      const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
-      notes.forEach((freq, idx) => {
+      [523.25, 659.25, 783.99, 1046.50].forEach((freq, idx) => {
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
         osc.type = 'triangle';
@@ -302,8 +247,7 @@ function playSound(type) {
         osc.stop(now + idx * 0.1 + 0.13);
       });
     } else if (type === 'cheer') {
-      const notes = [440, 554.37, 659.25, 880];
-      notes.forEach((freq, idx) => {
+      [440, 554.37, 659.25, 880].forEach((freq, idx) => {
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
         osc.type = 'sine';
@@ -319,13 +263,12 @@ function playSound(type) {
   } catch {}
 }
 
-/* --- CELEBRATION CONFETTI --- */
+// Canvas Confetti Engine
 function launchConfetti() {
-  const canvas = $('#confetti-canvas');
+  const canvas = document.getElementById('confetti-canvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
-
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
   canvas.style.display = 'block';
@@ -353,12 +296,11 @@ function launchConfetti() {
   function update() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     let active = false;
-
     for (const p of particles) {
       p.x += p.vx;
       p.y += p.vy;
-      p.vy += 0.35; // gravity
-      p.vx *= 0.98; // drag
+      p.vy += 0.35;
+      p.vx *= 0.98;
       p.rotation += p.rotationSpeed;
       p.opacity -= 0.009;
 
@@ -373,10 +315,8 @@ function launchConfetti() {
         ctx.restore();
       }
     }
-
-    if (active) {
-      animFrame = requestAnimationFrame(update);
-    } else {
+    if (active) animFrame = requestAnimationFrame(update);
+    else {
       cancelAnimationFrame(animFrame);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       canvas.style.display = 'none';
@@ -385,806 +325,700 @@ function launchConfetti() {
   update();
 }
 
-/* --- CODE FORMATTER / BEAUTIFIER --- */
-function formatCode() {
-  const codeEl = $('#code');
-  const lines = codeEl.value.split('\n');
-  const blockOpeners = new Set(['when', 'if', 'repeat', 'while', 'for', 'fn', 'function', definition.keywords.if, definition.keywords.repeat, definition.keywords.while, definition.keywords.for, definition.keywords.function]);
-  const blockClosers = new Set(['end', definition.keywords.end]);
-  const blockMid = new Set(['otherwise', 'else', definition.keywords.else]);
-
-  let indent = 0;
-  const formatted = lines.map(line => {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) {
-      return trimmed ? '  '.repeat(indent) + trimmed : '';
-    }
-    const firstWord = trimmed.split(/[\s(]/)[0];
-    if (blockClosers.has(firstWord) || blockMid.has(firstWord)) {
-      indent = Math.max(0, indent - 1);
-    }
-    const result = '  '.repeat(indent) + trimmed;
-    if (blockOpeners.has(firstWord) || blockMid.has(firstWord)) {
-      indent++;
-    }
-    return result;
-  }).join('\n');
-
-  codeEl.value = formatted;
-  highlight();
-  saveDraft();
-  toast('Code formatted with clean 2-space indentation ✨');
-  playSound('run');
-}
-
-function remap(source, oldWords, newWords) {
-  const mapping = new Map(Object.keys(oldWords).map(k => [oldWords[k], newWords[k]]));
-  return source.replace(/#[^\n]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[\p{L}_][\p{L}\p{M}\p{N}_]*/gu, word => mapping.get(word) ?? word);
-}
-
-function exampleCode(id) {
-  return remap(exampleData[id].source, LangLab.defaults, definition.keywords);
-}
-
-function toast(message) {
-  clearTimeout(toastTimer);
-  const t = $('#toast');
-  t.textContent = message;
-  t.hidden = false;
-  toastTimer = setTimeout(() => { t.hidden = true; }, 4000);
-}
-
-function navigate(page) {
-  if (!pageInfo[page]) page = 'playground';
-  const [title, description, breadcrumb] = pageInfo[page];
-  $$('.page').forEach(el => {
-    el.hidden = el.id !== 'page-' + page;
-    el.classList.toggle('active-page', !el.hidden);
-  });
-  $$('.nav-item').forEach(el => {
-    const isActive = el.dataset.page === page;
-    el.classList.toggle('active', isActive);
-    if (isActive) el.setAttribute('aria-current', 'page');
-    else el.removeAttribute('aria-current');
-  });
-  $('#page-title').textContent = title;
-  $('#page-description').textContent = description;
-  $('#breadcrumb').textContent = breadcrumb;
-  history.replaceState(null, '', '#' + page);
-
-  // Character reaction to page navigation
-  if (page === 'playground') {
-    setMascotMood('idle', "Welcome to the studio! Write, edit, or pick an example.", 'READY');
-  } else if (page === 'rules') {
-    fillRules();
-    setMascotMood('pointing', "Here you can invent new syntax. Change any keyword you want!", 'CUSTOMIZE');
-  } else if (page === 'examples') {
-    renderExamples();
-    setMascotMood('welcome', "Check out 10 examples! Click 'Try this example' to load one.", 'EXPLORE');
-  } else if (page === 'downloads') {
-    setMascotMood('trophy', "Take your language with you! Download the standalone offline kit.", 'EXPORT');
-  } else if (page === 'reference') {
-    renderReference();
-    setMascotMood('pointing', "Need syntax help? Here's the complete language guide.", 'GUIDE');
-  }
-  window.scrollTo({ top: 0, behavior: 'instant' });
-}
-
-function saveDraft() {
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    try {
-      localStorage.setItem('langlab-draft-v1', JSON.stringify({
-        definition,
-        code: $('#code').value,
-        input: $('#stdin').value,
-        example: activeExample
-      }));
-      $('#draft-status').innerHTML = '<i data-icon="save"></i>Draft saved';
-      drawIcons($('#draft-status'));
-    } catch {
-      $('#footer-save').textContent = 'Draft storage is unavailable. Download a copy before leaving.';
-    }
-  }, 350);
-}
-
-function restoreDraft() {
-  try {
-    const text = localStorage.getItem('langlab-draft-v1');
-    if (!text) return false;
-    const draft = JSON.parse(text);
-    if (text.length > 250000 || typeof draft.code !== 'string') return false;
-    // Merge keywords with defaults to ensure any newly added keyword (for, in) is present
-    const kw = { ...LangLab.defaults, ...(draft.definition?.keywords || {}) };
-    draft.definition = { ...draft.definition, keywords: kw };
-    if (LangLab.validate(draft.definition).length) return false;
-    definition = draft.definition;
-    $('#code').value = draft.code.slice(0, 100000);
-    $('#stdin').value = String(draft.input ?? '').slice(0, 100000);
-    activeExample = exampleData[draft.example] ? draft.example : 'welcome';
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function updateIdentity() {
-  const { name, extension, keywords } = definition;
-  $$('.language-name').forEach(e => { e.textContent = name; });
-  $$('.file-extension').forEach(e => { e.textContent = '.' + extension + ' files'; });
-  $('.language-logo').textContent = [...name.trim()][0]?.toUpperCase() ?? 'L';
-  $('#filename').textContent = 'hello.' + extension;
-  $('#editor-language').textContent = name;
-  $('#extension-label').textContent = '.' + extension;
-  $('#cli-command').textContent = 'node cli.cjs hello.' + extension;
-  $('#example-picker').value = activeExample;
-  updateDropdownUI(activeExample);
-
-  const previewKeys = ['print', 'let', 'if', 'for', 'in', 'end'];
-  $('#keyword-preview').innerHTML = previewKeys.map(k => `
-    <div class="keyword-row">
-      <span>${descriptors[k][0]}</span>
-      <code>${escapeHTML(keywords[k] ?? LangLab.defaults[k])}</code>
-    </div>
-  `).join('');
-
-  renderExamples();
-  renderReference();
-  highlight();
-}
-
-function highlight() {
-  const code = $('#code').value;
-  const words = new Set(Object.values(definition.keywords));
-  const builtins = new Set([
-    'len', 'number', 'text', 'round', 'sqrt', 'abs', 'min', 'max',
-    'range', 'push', 'pop', 'join', 'split', 'upper', 'lower', 'floor', 'ceil', 'random', 'reverse', 'contains'
-  ]);
-  let html = '', last = 0;
-  const re = /#[^\n]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\b\d+(?:\.\d+)?\b|[\p{L}_][\p{L}\p{M}\p{N}_]*/gu;
-
-  for (const match of code.matchAll(re)) {
-    const token = match[0];
-    html += escapeHTML(code.slice(last, match.index));
-    const cls = token[0] === '#' ? 'comment' :
-      (token[0] === '"' || token[0] === "'") ? 'string' :
-      /^\d/.test(token) ? 'number' :
-      words.has(token) ? 'keyword' :
-      builtins.has(token) ? 'builtin' : '';
-    html += cls ? `<span class="token-${cls}">${escapeHTML(token)}</span>` : escapeHTML(token);
-    last = match.index + token.length;
-  }
-  html += escapeHTML(code.slice(last));
-  $('#highlight').innerHTML = html + '\n';
-  $('#line-numbers').textContent = Array.from({ length: code.split('\n').length }, (_, i) => i + 1).join('\n');
-  syncScroll();
-  updateCursor();
-}
-
-function syncScroll() {
-  const el = $('#code');
-  $('#highlight').scrollTop = el.scrollTop;
-  $('#highlight').scrollLeft = el.scrollLeft;
-  $('#line-numbers').scrollTop = el.scrollTop;
-}
-
-function updateCursor() {
-  const code = $('#code');
-  const before = code.value.slice(0, code.selectionStart);
-  const lines = before.split('\n');
-  $('#cursor-location').textContent = `Ln ${lines.length}, Col ${lines.at(-1).length + 1}`;
-}
-
-function updateDropdownUI(id) {
-  const item = exampleData[id];
-  if (!item) return;
-  const titleEl = $('#dropdown-active-title');
-  const badgeEl = $('#dropdown-active-badge');
-  if (titleEl) titleEl.textContent = item.title;
-  if (badgeEl) {
-    badgeEl.textContent = item.badge || item.tag.split(' ')[0];
-    badgeEl.className = 'dropdown-trigger-badge ' + (item.category || 'basics');
-  }
-  $$('.custom-dropdown-item').forEach(el => {
-    const isSelected = el.dataset.value === id;
-    el.classList.toggle('is-selected', isSelected);
-    el.setAttribute('aria-selected', isSelected ? 'true' : 'false');
-    const check = el.querySelector('.item-check');
-    if (check) check.hidden = !isSelected;
-  });
-}
-
-function openDropdown() {
-  const popup = $('#example-dropdown-popup');
-  const btn = $('#example-dropdown-btn');
-  const container = $('#example-dropdown-container');
-  if (!popup || !btn) return;
-  popup.hidden = false;
-  btn.setAttribute('aria-expanded', 'true');
-  container?.classList.add('is-open');
-}
-
-function closeDropdown() {
-  const popup = $('#example-dropdown-popup');
-  const btn = $('#example-dropdown-btn');
-  const container = $('#example-dropdown-container');
-  if (!popup || !btn) return;
-  popup.hidden = true;
-  btn.setAttribute('aria-expanded', 'false');
-  container?.classList.remove('is-open');
-}
-
-function toggleDropdown() {
-  const popup = $('#example-dropdown-popup');
-  if (!popup) return;
-  if (popup.hidden) openDropdown();
-  else closeDropdown();
-}
-
-function loadExample(id, force = false) {
-  if (!exampleData[id]) return false;
-  if (!force && $('#code').value.trim() && $('#code').value !== exampleCode(activeExample) &&
-      !confirm('Replace your current program with this example? Download your program first if you want to keep it.')) {
-    $('#example-picker').value = activeExample;
-    updateDropdownUI(activeExample);
-    return false;
-  }
-  stopRun(false);
-  activeExample = id;
-  $('#code').value = exampleCode(id);
-  $('#stdin').value = exampleData[id].input;
-  $('#example-picker').value = id;
-  updateDropdownUI(id);
-  if (id === 'input' || id === 'game') $('.input-panel').open = true;
-  highlight();
-  saveDraft();
-  clearOutput();
-
-  setMascotMood('idle', `Loaded example: "${exampleData[id].title}"! Press Run to test it. 🚀`, 'READY');
-  playSound('run');
-  return true;
-}
-
-function renderExamples() {
-  const grid = $('#examples-grid');
-  if (!grid) return;
-  const entries = Object.entries(exampleData);
-  const filtered = activeFilter === 'all'
-    ? entries
-    : entries.filter(([_, item]) => item.category === activeFilter);
-
-  grid.innerHTML = filtered.map(([id, item], i) => `
-    <article class="example-card ${activeExample === id ? 'active-card' : ''}">
-      <div class="example-card-top">
-        <span class="example-number">0${i + 1} <span class="separator">/</span> ${item.tag}</span>
-        <span class="category-tag">${item.category.toUpperCase()}</span>
-      </div>
-      <h2>${item.title}</h2>
-      <p>${item.description}</p>
-      <pre>${escapeHTML(exampleCode(id))}</pre>
-      <div class="example-actions">
-        <button class="button primary small" data-example="${id}"><i data-icon="play"></i>Try in editor</button>
-        <button class="icon-button copy-example-btn" data-copy-example="${id}" aria-label="Copy example code" title="Copy code"><i data-icon="copy"></i></button>
-      </div>
-    </article>
-  `).join('');
-  drawIcons(grid);
-}
-
-function renderReference() {
-  const k = definition.keywords;
-  const cards = [
-    [
-      'Values & variables',
-      'Numbers, quoted text, booleans, and lists. Join text with +.',
-      `${k.let} name = "Josiah"\n${k.let} ready = ${k.true}\n${k.print} "Hello, " + name`
-    ],
-    [
-      'For loops & ranges',
-      `Iterate through lists or whole number ranges with ${k.for} and ${k.in}.`,
-      `${k.for} fruit ${k.in} ["Apple", "Berry"]\n  ${k.print} fruit\n${k.end}\n\n${k.for} i ${k.in} range(1, 4)\n  ${k.print} "Step " + text(i)\n${k.end}`
-    ],
-    [
-      'Repeat & while loops',
-      `Repeat a fixed number of times or loop while a condition holds true.`,
-      `${k.repeat} 3\n  ${k.print} "Keep creating"\n${k.end}\n\n${k.let} i = 0\n${k.while} i < 3\n  ${k.print} i\n  i = i + 1\n${k.end}`
-    ],
-    [
-      'Conditions (when / otherwise)',
-      `Choose a path with ${k.if} and ${k.else}. Close blocks with ${k.end}.`,
-      `${k.if} 5 > 3 ${k.and} ${k.not} ${k.false}\n  ${k.print} "Yes!"\n${k.else}\n  ${k.print} "Try again"\n${k.end}`
-    ],
-    [
-      'Functions & return',
-      `Define reusable logic with parameters and return values.`,
-      `${k.function} double(n)\n  ${k.return} n * 2\n${k.end}\n${k.print} double(21)`
-    ],
-    [
-      'Input & questions',
-      `Read one answer per line from the Program input box. Convert to numbers with number().`,
-      `${k.let} age = number(${k.input}("Your age?"))\n${k.print} "Next year: " + text(age + 1)`
-    ],
-    [
-      'Lists & collections',
-      `Store ordered collections. Add items with push(), remove last with pop().`,
-      `${k.let} items = [10, 20]\npush(items, 30)\n${k.print} items[0]\n${k.print} len(items)\n${k.print} pop(items)`
-    ],
-    [
-      'Built-in helpers',
-      `18 powerful built-ins: range, push, pop, join, split, upper, lower, floor, ceil, random, reverse, contains, len, number, text, round, sqrt, abs, min, max.`,
-      `${k.let} words = split("hello world", " ")\n${k.print} upper(words[0])\n${k.print} reverse("robot")\n${k.print} random(1, 10)\n${k.print} contains(words, "world")`
-    ]
-  ];
-
-  $('#reference-grid').innerHTML = cards.map(([title, description, code]) => `
-    <article class="reference-card">
-      <h2>${title}</h2>
-      <p>${escapeHTML(description)}</p>
-      <pre>${escapeHTML(code)}</pre>
-    </article>
-  `).join('');
-}
-
-function fillRules() {
-  $('#language-name').value = definition.name;
-  $('#language-extension').value = definition.extension;
-  $('#keyword-fields').innerHTML = Object.entries(descriptors).map(([key, [label, hint]]) => `
-    <div class="keyword-field">
-      <label for="kw-${key}">${label}</label>
-      <input id="kw-${key}" name="${key}" value="${escapeHTML(definition.keywords[key] ?? LangLab.defaults[key])}" maxlength="30" required spellcheck="false" autocomplete="off">
-      <small>${hint}</small>
-    </div>
-  `).join('');
-  $('#rules-error').hidden = true;
-}
-
-function applyDefinition(next) {
-  const issues = LangLab.validate(next);
-  if (issues.length) throw Error(issues.join('\n'));
-  stopRun(false);
-  $('#code').value = remap($('#code').value, definition.keywords, next.keywords);
-  definition = {
-    name: next.name.trim(),
-    extension: next.extension,
-    keywords: Object.fromEntries(Object.keys(LangLab.defaults).map(k => [k, next.keywords[k]])),
+// React Startup WebApp Component
+function LangLabReactApp() {
+  const [definition, setDefinition] = useState(() => ({
+    name: 'Nova',
+    extension: 'nova',
+    keywords: { ...window.LangLab.defaults },
     version: '1.0.0'
-  };
-  updateIdentity();
-  saveDraft();
-  clearOutput();
-}
+  }));
 
-function clearOutput() {
-  $('#output').innerHTML = '<p class="empty-output">Your next idea starts with a run.<br><span>Press Run program to see the result here.</span></p>';
-  $('#execution-status').textContent = 'Ready when you are';
-  $('#execution-status').className = 'execution-status';
-}
+  const [activePage, setActivePage] = useState(() => location.hash.slice(1) || 'playground');
+  const [activeExample, setActiveExample] = useState('welcome');
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [code, setCode] = useState(() => exampleData.welcome.source);
+  const [stdin, setStdin] = useState('');
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [toastMsg, setToastMsg] = useState('');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [tipIdx, setTipIdx] = useState(0);
 
-function displayResult(result) {
-  const out = $('#output');
-  out.textContent = '';
-  for (const line of result.output ?? []) {
-    const el = document.createElement('div');
-    el.className = 'output-line';
-    el.textContent = line || ' ';
-    out.append(el);
-  }
+  const [execution, setExecution] = useState({
+    status: 'idle',
+    output: [],
+    duration: 0,
+    steps: 0,
+    error: null
+  });
 
-  if (!result.ok) {
-    const el = document.createElement('div');
-    el.className = 'output-error';
-    el.textContent = `Line ${result.line ?? 1}: ${result.message}`;
-    out.append(el);
+  const [mascot, setMascot] = useState({
+    pose: 'idle',
+    speech: "Welcome to the studio! Write, edit, or pick an example.",
+    badge: 'READY'
+  });
 
-    $('#execution-status').className = 'execution-status error';
-    $('#execution-status').textContent = `Error on line ${result.line ?? 1}`;
-    setMascotMood('thinking', `Oops on line ${result.line ?? 1}: "${result.message}". Let's check it!`, 'CHECK CODE');
-    playSound('error');
-  } else {
-    if (!result.output?.length) {
-      const el = document.createElement('p');
-      el.className = 'muted';
-      el.textContent = 'Completed successfully with no output.';
-      out.append(el);
+  const textareaRef = useRef(null);
+  const lineNumbersRef = useRef(null);
+  const highlightRef = useRef(null);
+  const toastTimerRef = useRef(null);
+  const workerRef = useRef(null);
+  const workerURLRef = useRef(null);
+  const runTimerRef = useRef(null);
+  const engineSourceRef = useRef(null);
+
+  const triggerToast = useCallback((msg) => {
+    clearTimeout(toastTimerRef.current);
+    setToastMsg(msg);
+    toastTimerRef.current = setTimeout(() => setToastMsg(''), 4000);
+  }, []);
+
+  // Sync Hash Navigation
+  useEffect(() => {
+    const handleHash = () => {
+      const page = location.hash.slice(1) || 'playground';
+      setActivePage(page);
+    };
+    window.addEventListener('hashchange', handleHash);
+    return () => window.removeEventListener('hashchange', handleHash);
+  }, []);
+
+  const navigate = useCallback((page) => {
+    setActivePage(page);
+    location.hash = page;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    if (page === 'playground') {
+      setMascot({ pose: 'idle', speech: "Welcome to the studio! Write, edit, or pick an example.", badge: 'READY' });
+    } else if (page === 'rules') {
+      setMascot({ pose: 'pointing', speech: "Here you can invent new syntax. Change any keyword you want!", badge: 'CUSTOMIZE' });
+    } else if (page === 'examples') {
+      setMascot({ pose: 'welcome', speech: "Check out 10 examples! Click 'Try in editor' to load one.", badge: 'EXPLORE' });
+    } else if (page === 'downloads') {
+      setMascot({ pose: 'trophy', speech: "Take your language with you! Download the standalone offline kit.", badge: 'EXPORT' });
+    } else if (page === 'reference') {
+      setMascot({ pose: 'pointing', speech: "Need syntax help? Here's the complete language guide.", badge: 'GUIDE' });
     }
-    const ms = result.duration ?? 0;
-    $('#execution-status').className = 'execution-status success';
-    $('#execution-status').textContent = `Completed · ${ms} ms · ${result.steps} steps`;
+  }, []);
 
-    setMascotMood('celebrate', `Boom! Code ran cleanly in ${ms} ms (${result.steps} steps)! 🎉⭐`, 'SUCCESS');
-    playSound('success');
-    launchConfetti();
-  }
-}
+  // Format / Beautify Code
+  const handleFormatCode = useCallback(() => {
+    const lines = code.split('\n');
+    const blockOpeners = new Set(['when', 'if', 'repeat', 'while', 'for', 'fn', 'function', definition.keywords.if, definition.keywords.repeat, definition.keywords.while, definition.keywords.for, definition.keywords.function]);
+    const blockClosers = new Set(['end', definition.keywords.end]);
+    const blockMid = new Set(['otherwise', 'else', definition.keywords.else]);
 
-function engineSource() {
-  if (!engineSourcePromise) {
-    engineSourcePromise = fetch('engine.js').then(r => {
-      if (!r.ok) throw Error('The runner could not load. Please refresh and try again.');
-      return r.text();
-    }).catch(e => {
-      engineSourcePromise = null;
-      throw e;
-    });
-  }
-  return engineSourcePromise;
-}
+    let indent = 0;
+    const formatted = lines.map(line => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) return trimmed ? '  '.repeat(indent) + trimmed : '';
+      const firstWord = trimmed.split(/[\s(]/)[0];
+      if (blockClosers.has(firstWord) || blockMid.has(firstWord)) indent = Math.max(0, indent - 1);
+      const result = '  '.repeat(indent) + trimmed;
+      if (blockOpeners.has(firstWord) || blockMid.has(firstWord)) indent++;
+      return result;
+    }).join('\n');
 
-function finishRun() {
-  clearTimeout(runTimer);
-  if (worker) worker.terminate();
-  if (workerURL) URL.revokeObjectURL(workerURL);
-  worker = null;
-  workerURL = null;
-  $('#run').hidden = false;
-  $('#run').disabled = false;
-  $('#stop').hidden = true;
-}
+    setCode(formatted);
+    triggerToast('Code formatted with clean 2-space indentation ✨');
+    playSound('run', soundEnabled);
+  }, [code, definition.keywords, soundEnabled, triggerToast]);
 
-function stopRun(notify = true) {
-  runGeneration++;
-  const active = !!worker || !!pendingResolve;
-  finishRun();
-  if (notify && active) {
-    $('#execution-status').textContent = 'Stopped';
-    $('#execution-status').className = 'execution-status';
-    setMascotMood('idle', 'Execution stopped.', 'READY');
-  }
-  pendingResolve?.({ ok: false, message: 'Stopped by user', output: [] });
-  pendingResolve = null;
-}
+  // Load Example
+  const loadExample = useCallback((id, force = false) => {
+    if (!exampleData[id]) return;
+    if (!force && code.trim() && code !== remap(exampleData[activeExample].source, window.LangLab.defaults, definition.keywords) &&
+        !confirm('Replace your current program with this example?')) {
+      return;
+    }
+    const mappedSource = remap(exampleData[id].source, window.LangLab.defaults, definition.keywords);
+    setActiveExample(id);
+    setCode(mappedSource);
+    setStdin(exampleData[id].input);
+    setExecution({ status: 'idle', output: [], duration: 0, steps: 0, error: null });
+    setMascot({ pose: 'idle', speech: `Loaded example: "${exampleData[id].title}"! Press Run to test it. 🚀`, badge: 'READY' });
+    playSound('run', soundEnabled);
+  }, [activeExample, code, definition.keywords, soundEnabled]);
 
-async function runProgram() {
-  stopRun(false);
-  const generation = runGeneration;
-  $('#output').textContent = '';
-  $('#execution-status').textContent = 'Running…';
-  $('#execution-status').className = 'execution-status running';
-  $('#run').disabled = true;
+  // Code Runner Engine
+  const fetchEngineSource = useCallback(async () => {
+    if (!engineSourceRef.current) {
+      const res = await fetch('engine.js');
+      if (!res.ok) throw Error('Could not load language engine.');
+      engineSourceRef.current = await res.text();
+    }
+    return engineSourceRef.current;
+  }, []);
 
-  setMascotMood('thinking', 'Running your program... Thinking through the steps ⚙️', 'RUNNING');
-  playSound('run');
+  const stopRun = useCallback(() => {
+    clearTimeout(runTimerRef.current);
+    if (workerRef.current) workerRef.current.terminate();
+    if (workerURLRef.current) URL.revokeObjectURL(workerURLRef.current);
+    workerRef.current = null;
+    workerURLRef.current = null;
+    setExecution(prev => prev.status === 'running' ? { ...prev, status: 'stopped' } : prev);
+  }, []);
 
-  try {
-    const source = await engineSource();
-    if (generation !== runGeneration) return { ok: false, message: 'Cancelled', output: [] };
+  const runProgram = useCallback(async () => {
+    stopRun();
+    setExecution({ status: 'running', output: [], duration: 0, steps: 0, error: null });
+    setMascot({ pose: 'coding', speech: 'Running your program... Thinking through the steps ⚙️', badge: 'RUNNING' });
+    playSound('run', soundEnabled);
 
-    return await new Promise(resolve => {
-      pendingResolve = resolve;
+    try {
+      const source = await fetchEngineSource();
       const script = source + '\nonmessage=e=>{try{postMessage({ok:true,...LangLab.execute(e.data.code,e.data.definition,e.data.input)})}catch(error){postMessage({ok:false,message:error.message,line:error.line||1,output:error.output||[]})}};';
-      workerURL = URL.createObjectURL(new Blob([script], { type: 'text/javascript' }));
-      worker = new Worker(workerURL);
-      $('#run').hidden = true;
-      $('#stop').hidden = false;
+      workerURLRef.current = URL.createObjectURL(new Blob([script], { type: 'text/javascript' }));
+      workerRef.current = new Worker(workerURLRef.current);
 
-      const complete = result => {
-        displayResult(result);
-        finishRun();
-        pendingResolve = null;
-        resolve(result);
+      workerRef.current.onmessage = e => {
+        const result = e.data;
+        if (!result.ok) {
+          setExecution({ status: 'error', output: result.output || [], duration: 0, steps: 0, error: result });
+          setMascot({ pose: 'thinking', speech: `Oops on line ${result.line || 1}: "${result.message}". Let's check it!`, badge: 'CHECK CODE' });
+          playSound('error', soundEnabled);
+        } else {
+          setExecution({ status: 'success', output: result.output || [], duration: result.duration || 0, steps: result.steps || 0, error: null });
+          setMascot({ pose: 'celebrate', speech: `Boom! Code ran cleanly in ${result.duration || 0} ms (${result.steps || 0} steps)! 🎉⭐`, badge: 'SUCCESS' });
+          playSound('success', soundEnabled);
+          launchConfetti();
+        }
+        stopRun();
       };
 
-      worker.onmessage = e => complete(e.data);
-      worker.onerror = () => complete({ ok: false, message: 'The runner could not start. Refresh the page or try Chrome or Edge.', output: [] });
-      worker.postMessage({ code: $('#code').value, definition, input: $('#stdin').value });
-      runTimer = setTimeout(() => complete({ ok: false, message: 'Execution timed out. Check for an endless loop.', output: [] }), 5000);
-    });
-  } catch (error) {
-    const result = { ok: false, message: error.message, output: [] };
-    displayResult(result);
-    finishRun();
-    pendingResolve = null;
-    return result;
-  }
-}
+      workerRef.current.onerror = () => {
+        setExecution({ status: 'error', output: [], duration: 0, steps: 0, error: { message: 'Runner could not start.', line: 1 } });
+        playSound('error', soundEnabled);
+        stopRun();
+      };
 
-function downloadFile(name, content, type = 'text/plain;charset=utf-8') {
-  const blob = content instanceof Blob ? content : new Blob([content], { type });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1500);
-}
-
-async function downloadKit() {
-  const buttons = [$('#download-top'), $('#download-kit')];
-  buttons.forEach(b => { if (b) b.disabled = true; });
-  try {
-    const source = await engineSource();
-    const files = LangLabExport.kitFiles(definition, $('#code').value, source, $('#stdin').value);
-    downloadFile(definition.extension + '-language-kit.zip', LangLabExport.zip(files));
-    toast('Language kit ready! Extract it and open RUN.html.');
-    setMascotMood('trophy', 'Your language kit is downloaded! Have fun exploring offline! 📦', 'DOWNLOADED');
-    playSound('cheer');
-    launchConfetti();
-  } catch (e) {
-    toast(e.message);
-  } finally {
-    buttons.forEach(b => { if (b) b.disabled = false; });
-  }
-}
-
-/* --- EVENT LISTENERS & SETUP --- */
-$('#code').addEventListener('input', () => {
-  if ($('#code').value.length > 100000) {
-    $('#code').value = $('#code').value.slice(0, 100000);
-    toast('Programs are limited to 100,000 characters.');
-  }
-  highlight();
-  saveDraft();
-});
-$('#code').addEventListener('scroll', syncScroll);
-$('#code').addEventListener('click', updateCursor);
-$('#code').addEventListener('keyup', updateCursor);
-$('#code').addEventListener('keydown', e => {
-  if (e.key === 'Tab') {
-    e.preventDefault();
-    const el = e.target;
-    el.setRangeText('  ', el.selectionStart, el.selectionEnd, 'end');
-    highlight();
-    saveDraft();
-  }
-});
-$('#stdin').addEventListener('input', saveDraft);
-
-document.addEventListener('keydown', e => {
-  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !$('#page-playground').hidden) {
-    e.preventDefault();
-    runProgram();
-  }
-});
-
-document.addEventListener('click', e => {
-  const page = e.target.closest('[data-page]');
-  if (page) navigate(page.dataset.page);
-
-  const example = e.target.closest('[data-example]');
-  if (example && loadExample(example.dataset.example)) navigate('playground');
-
-  const copyEx = e.target.closest('[data-copy-example]');
-  if (copyEx) {
-    const exId = copyEx.dataset.copyExample;
-    if (exampleData[exId]) {
-      navigator.clipboard.writeText(exampleCode(exId)).then(() => {
-        toast(`Copied "${exampleData[exId].title}" to clipboard!`);
-        playSound('run');
-      });
+      workerRef.current.postMessage({ code, definition, input: stdin });
+      runTimerRef.current = setTimeout(() => {
+        setExecution({ status: 'error', output: [], duration: 0, steps: 0, error: { message: 'Execution timed out. Check for infinite loops.', line: 1 } });
+        playSound('error', soundEnabled);
+        stopRun();
+      }, 5000);
+    } catch (err) {
+      setExecution({ status: 'error', output: [], duration: 0, steps: 0, error: { message: err.message, line: 1 } });
+      playSound('error', soundEnabled);
+      stopRun();
     }
-  }
+  }, [code, definition, fetchEngineSource, playSound, soundEnabled, stdin, stopRun]);
 
-  const filterBtn = e.target.closest('.filter-pill');
-  if (filterBtn) {
-    $$('.filter-pill').forEach(b => b.classList.remove('active'));
-    filterBtn.classList.add('active');
-    activeFilter = filterBtn.dataset.filter;
-    renderExamples();
-    playSound('run');
-  }
-});
-
-$('.brand').addEventListener('click', e => {
-  e.preventDefault();
-  navigate('playground');
-});
-/* --- CUSTOM DROPDOWN INTERACTION --- */
-$('#example-dropdown-btn')?.addEventListener('click', e => {
-  e.stopPropagation();
-  toggleDropdown();
-});
-
-$$('.custom-dropdown-item').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const val = btn.dataset.value;
-    if (val && loadExample(val)) {
-      closeDropdown();
-      $('#example-dropdown-btn')?.focus();
-    }
-  });
-});
-
-document.addEventListener('click', e => {
-  if (!e.target.closest('#example-dropdown-container')) {
-    closeDropdown();
-  }
-});
-
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') {
-    closeDropdown();
-  }
-});
-
-$('#example-picker').addEventListener('change', e => loadExample(e.target.value));
-$('#run').addEventListener('click', runProgram);
-$('#stop').addEventListener('click', () => stopRun());
-$('#clear-output').addEventListener('click', () => {
-  stopRun(false);
-  clearOutput();
-});
-$('#copy-output')?.addEventListener('click', async () => {
-  const out = $('#output').textContent;
-  if (!out.trim()) {
-    toast('Nothing to copy yet. Run your program first!');
-    return;
-  }
-  try {
-    await navigator.clipboard.writeText(out);
-    toast('Output copied to clipboard!');
-    playSound('run');
-  } catch {
-    toast('Could not copy output.');
-  }
-});
-$('#format-code')?.addEventListener('click', formatCode);
-$('#reset-code').addEventListener('click', () => loadExample(activeExample));
-$('#copy-code').addEventListener('click', async () => {
-  try {
-    await navigator.clipboard.writeText($('#code').value);
-    toast('Program copied to clipboard.');
-    playSound('run');
-  } catch {
-    $('#code').focus();
-    $('#code').select();
-    toast('Press Ctrl+C to copy the selected program.');
-  }
-});
-
-/* --- MASCOT INTERACTION LISTENERS --- */
-$('#mascot-sayhi')?.addEventListener('click', () => {
-  setMascotMood('wave', "Beep boop! Hello world! Byte here, your language pair programmer 🤖👋", 'HELLO!');
-  playSound('run');
-});
-$('#mascot-tip')?.addEventListener('click', () => {
-  tipIndex = (tipIndex + 1) % codingTips.length;
-  setMascotMood('pointing', `💡 Tip: ${codingTips[tipIndex]}`, 'PRO TIP');
-  playSound('run');
-});
-$('#mascot-cheer')?.addEventListener('click', () => {
-  setMascotMood('celebrate', "Yaaay! Keep building awesome things! You've got superpowers! 🌟🎉", 'CHEER!');
-  playSound('cheer');
-  launchConfetti();
-});
-$('#mascot-img')?.addEventListener('click', () => {
-  tipIndex = (tipIndex + 1) % codingTips.length;
-  setMascotMood('celebrate', `💡 ${codingTips[tipIndex]}`, 'BYTE');
-  playSound('cheer');
-  launchConfetti();
-});
-$('#mascot-fab')?.addEventListener('click', () => {
-  tipIndex = (tipIndex + 1) % codingTips.length;
-  setMascotMood('wave', `🤖 Byte says: ${codingTips[tipIndex]}`, 'HELLO!');
-  playSound('run');
-  if ($('#page-playground').hidden) {
-    toast(`Byte: ${codingTips[tipIndex]}`);
-  }
-});
-
-/* --- SOUND TOGGLE --- */
-const soundBtn = $('#sound-toggle');
-if (soundBtn) {
-  soundBtn.addEventListener('click', () => {
-    soundEnabled = !soundEnabled;
-    try { localStorage.setItem('langlab-sound', String(soundEnabled)); } catch {}
-    soundBtn.innerHTML = `<i data-icon="${soundEnabled ? 'volume' : 'volume_off'}"></i><span class="sr-only">Toggle sound</span>`;
-    soundBtn.title = soundEnabled ? 'Audio feedback: ON' : 'Audio feedback: MUTED';
-    drawIcons(soundBtn);
-    toast(soundEnabled ? 'Audio feedback turned ON 🔊' : 'Audio feedback MUTED 🔇');
-    if (soundEnabled) playSound('run');
-  });
-  if (!soundEnabled) {
-    soundBtn.innerHTML = `<i data-icon="volume_off"></i><span class="sr-only">Toggle sound</span>`;
-    soundBtn.title = 'Audio feedback: MUTED';
-  }
-}
-
-/* --- INTERACTIVE TIP CARD --- */
-$('#tip-card-interactive')?.addEventListener('click', () => {
-  tipIndex = (tipIndex + 1) % codingTips.length;
-  $('#tip-body').textContent = codingTips[tipIndex];
-  playSound('run');
-});
-
-$('#rules-form').addEventListener('submit', e => {
-  e.preventDefault();
-  const next = {
-    name: $('#language-name').value.trim(),
-    extension: $('#language-extension').value.trim(),
-    keywords: Object.fromEntries(Object.keys(LangLab.defaults).map(k => [k, $('#kw-' + k).value.trim()]))
-  };
-  try {
-    applyDefinition(next);
-    navigate('playground');
-    toast('Your language is ready! Program keywords have been remapped.');
-    setMascotMood('celebrate', 'Rules updated successfully! Your program now speaks your custom language!', 'SUCCESS');
-    playSound('success');
-    launchConfetti();
-  } catch (error) {
-    $('#rules-error').textContent = error.message;
-    $('#rules-error').hidden = false;
-    playSound('error');
-  }
-});
-
-$('#download-top').onclick = downloadKit;
-$('#download-kit').onclick = downloadKit;
-$('#download-definition').onclick = () => downloadFile('language.json', JSON.stringify(definition, null, 2), 'application/json');
-$('#download-program').onclick = () => downloadFile('hello.' + definition.extension, $('#code').value);
-
-$('#import-button').onclick = () => $('#import-file').click();
-$('#import-file').onchange = async e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  try {
-    if (file.size > 50000) throw Error('Choose a language JSON file smaller than 50 KB.');
-    const data = JSON.parse(await file.text());
-    if (LangLab.validate(data).length) throw Error(LangLab.validate(data)[0]);
-    applyDefinition(data);
-    navigate('playground');
-    toast('Language imported. Your current program uses its keywords.');
-    setMascotMood('welcome', `Language "${data.name}" imported successfully! Ready to code.`, 'IMPORTED');
-    playSound('success');
-  } catch (error) {
-    toast('Could not import: ' + error.message);
-    playSound('error');
-  } finally {
-    e.target.value = '';
-  }
-};
-
-drawIcons();
-$$('.nav-item').forEach(el => el.setAttribute('aria-label', el.textContent.replace(/0[12]/, '').trim()));
-
-if (!restoreDraft()) loadExample('welcome', true);
-updateIdentity();
-navigate(location.hash.slice(1) || 'playground');
-
-if (document.modelContext?.registerTool) {
-  const lifetime = new AbortController();
-  const tools = [
-    {
-      name: 'read_language_workspace',
-      title: 'Read language workspace',
-      description: 'Read the current language rules, source code, and input.',
-      inputSchema: { type: 'object', properties: {}, additionalProperties: false },
-      annotations: { readOnlyHint: true, untrustedContentHint: true },
-      execute: () => ({ definition, code: $('#code').value, input: $('#stdin').value })
-    },
-    {
-      name: 'run_language_program',
-      title: 'Run a program',
-      description: 'Replace the visible program and optional input, then execute it using the current custom language.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          code: { type: 'string', maxLength: 100000 },
-          input: { type: 'string', maxLength: 100000 }
-        },
-        required: ['code'],
-        additionalProperties: false
-      },
-      annotations: { readOnlyHint: false, untrustedContentHint: true },
-      execute: async input => {
-        if (!input || typeof input.code !== 'string' || input.code.length > 100000 ||
-            (input.input !== undefined && (typeof input.input !== 'string' || input.input.length > 100000))) {
-          throw Error('Provide code and optional input, each under 100,000 characters.');
-        }
-        $('#code').value = input.code;
-        $('#stdin').value = input.input ?? '';
-        highlight();
-        saveDraft();
-        navigate('playground');
-        return await runProgram();
+  // Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = e => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && activePage === 'playground') {
+        e.preventDefault();
+        runProgram();
       }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activePage, runProgram]);
+
+  // Syntax Highlighting Tokens
+  const syntaxHTML = useMemo(() => {
+    const words = new Set(Object.values(definition.keywords));
+    const builtins = new Set(['len', 'number', 'text', 'round', 'sqrt', 'abs', 'min', 'max', 'range', 'push', 'pop', 'join', 'split', 'upper', 'lower', 'floor', 'ceil', 'random', 'reverse', 'contains']);
+    let html = '', last = 0;
+    const re = /#[^\n]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\b\d+(?:\.\d+)?\b|[\p{L}_][\p{L}\p{M}\p{N}_]*/gu;
+
+    for (const match of code.matchAll(re)) {
+      const token = match[0];
+      html += escapeHTML(code.slice(last, match.index));
+      const cls = token[0] === '#' ? 'comment' :
+        (token[0] === '"' || token[0] === "'") ? 'string' :
+        /^\d/.test(token) ? 'number' :
+        words.has(token) ? 'keyword' :
+        builtins.has(token) ? 'builtin' : '';
+      html += cls ? `<span class="token-${cls}">${escapeHTML(token)}</span>` : escapeHTML(token);
+      last = match.index + token.length;
     }
-  ];
-  for (const tool of tools) {
+    html += escapeHTML(code.slice(last));
+    return html + '\n';
+  }, [code, definition.keywords]);
+
+  const lineNumbers = useMemo(() => {
+    return Array.from({ length: code.split('\n').length }, (_, i) => i + 1).join('\n');
+  }, [code]);
+
+  // Download Kit Action
+  const handleDownloadKit = useCallback(async () => {
     try {
-      Promise.resolve(document.modelContext.registerTool(tool, { signal: lifetime.signal })).catch(() => {});
-    } catch {}
-  }
-  window.addEventListener('pagehide', () => lifetime.abort(), { once: true });
+      const source = await fetchEngineSource();
+      const files = window.LangLabExport.kitFiles(definition, code, source, stdin);
+      const zipBlob = window.LangLabExport.zip(files);
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${definition.extension}-language-kit.zip`;
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+
+      triggerToast('Language kit ready! Extract it and open RUN.html.');
+      setMascot({ pose: 'trophy', speech: 'Your language kit is downloaded! Have fun exploring offline! 📦', badge: 'DOWNLOADED' });
+      playSound('cheer', soundEnabled);
+      launchConfetti();
+    } catch (err) {
+      triggerToast(err.message);
+    }
+  }, [code, definition, fetchEngineSource, playSound, soundEnabled, stdin, triggerToast]);
+
+  return h(Fragment, null,
+    // SIDEBAR
+    h('aside', { className: 'sidebar' },
+      h('a', { className: 'brand', href: '#playground', onClick: e => { e.preventDefault(); navigate('playground'); } },
+        h('span', { className: 'brand-mark', 'aria-hidden': true }, '</>'),
+        h('span', null, 'Lang', h('span', { className: 'purple' }, 'Lab'))
+      ),
+      h('div', { className: 'workspace-label' }, 'YOUR WORKSPACE'),
+      h('nav', { 'aria-label': 'Workspace' },
+        h('button', { className: `nav-item ${activePage === 'playground' ? 'active' : ''}`, onClick: () => navigate('playground') }, h(Icon, { name: 'code' }), 'Playground', h('span', { className: 'nav-key' }, '01')),
+        h('button', { className: `nav-item ${activePage === 'rules' ? 'active' : ''}`, onClick: () => navigate('rules') }, h(Icon, { name: 'sliders' }), 'Language rules', h('span', { className: 'nav-key' }, '02')),
+        h('button', { className: `nav-item ${activePage === 'examples' ? 'active' : ''}`, onClick: () => navigate('examples') }, h(Icon, { name: 'layers' }), 'Examples'),
+        h('button', { className: `nav-item ${activePage === 'downloads' ? 'active' : ''}`, onClick: () => navigate('downloads') }, h(Icon, { name: 'download' }), 'Download & run')
+      ),
+      h('div', { className: 'sidebar-bottom' },
+        h('div', { className: 'tiny-label' }, 'A LITTLE HELP?'),
+        h('button', { className: `nav-item ${activePage === 'reference' ? 'active' : ''}`, onClick: () => navigate('reference') }, h(Icon, { name: 'book' }), 'Language guide'),
+        h('div', { className: 'local-note' },
+          h('span', { className: 'local-icon' }, h(Icon, { name: 'laptop' })),
+          h('div', null, h('strong', null, 'Your space to create'), h('span', null, 'Drafts stay in this browser.'))
+        )
+      )
+    ),
+
+    // MAIN APP WRAPPER
+    h('div', { className: 'app' },
+      // TOPBAR
+      h('header', { className: 'topbar' },
+        h('div', { className: 'breadcrumb-group' },
+          h('div', { className: 'breadcrumb' },
+            'Workspace ', h('span', null, '/'), ' ', h('strong', null, activePage.charAt(0).toUpperCase() + activePage.slice(1))
+          ),
+          h('div', { className: 'mascot-mood-pill', title: 'Companion Status' },
+            h('span', { className: `mood-indicator ${execution.status === 'running' ? 'pulse-amber' : execution.status === 'error' ? 'pulse-red' : 'pulse-green'}` }),
+            h('span', null, mascot.badge === 'RUNNING' ? 'Byte is running code...' : mascot.badge === 'SUCCESS' ? 'Byte: Success! 🎉' : mascot.badge === 'CHECK CODE' ? 'Byte: Check error ⚠️' : 'Byte is ready!')
+          )
+        ),
+        h('div', { className: 'top-actions' },
+          h('button', {
+            className: 'button ghost icon-only',
+            onClick: () => {
+              setSoundEnabled(!soundEnabled);
+              triggerToast(soundEnabled ? 'Audio feedback MUTED 🔇' : 'Audio feedback turned ON 🔊');
+            },
+            title: soundEnabled ? 'Audio feedback: ON' : 'Audio feedback: MUTED'
+          }, h(Icon, { name: soundEnabled ? 'volume' : 'volume_off' })),
+          h('button', {
+            className: 'button primary small',
+            onClick: handleDownloadKit
+          }, h(Icon, { name: 'download' }), h('span', null, 'Download language'))
+        )
+      ),
+
+      // MAIN CONTENT
+      h('main', { id: 'main' },
+        h('section', { className: 'page-heading' },
+          h('div', null,
+            h('div', { className: 'eyebrow' }, 'CREATE SOMETHING THAT\'S YOURS'),
+            h('h1', null, activePage === 'playground' ? 'Your language. Your rules.' : activePage === 'rules' ? 'Make it speak your language.' : activePage === 'examples' ? 'Small programs. Big possibilities.' : activePage === 'downloads' ? 'Your language, to go.' : 'A guide to your language.'),
+            h('p', null, activePage === 'playground' ? 'Give your ideas a syntax. Then bring them to life.' : activePage === 'rules' ? 'The same possibilities. Words that feel like you.' : activePage === 'examples' ? 'Pick a starting point and see what your language can do.' : activePage === 'downloads' ? 'Keep creating on your computer, even without the internet.' : 'Everything you need to turn an idea into a program.')
+          ),
+          h('div', { className: 'draft-badge' }, h(Icon, { name: 'save' }), 'Local draft')
+        ),
+
+        // PLAYGROUND PAGE
+        activePage === 'playground' && h('section', { className: 'studio-grid' },
+          h('div', { className: 'work-column' },
+            h('div', { className: 'workspace-toolbar' },
+              h('div', { className: 'file-tabs' },
+                h('span', { className: 'file-tab' }, h(Icon, { name: 'file' }), `hello.${definition.extension}`, h('span', { className: 'file-dot' }))
+              ),
+              h('div', { className: `custom-dropdown-container ${dropdownOpen ? 'is-open' : ''}` },
+                h('button', {
+                  type: 'button',
+                  className: 'custom-dropdown-trigger',
+                  onClick: () => setDropdownOpen(!dropdownOpen)
+                },
+                  h('span', { className: 'dropdown-trigger-icon' }, h(Icon, { name: 'layers' })),
+                  h('span', { className: 'dropdown-trigger-text' },
+                    h('span', { className: 'dropdown-trigger-sub' }, 'EXAMPLE'),
+                    h('strong', null, exampleData[activeExample].title)
+                  ),
+                  h('span', { className: 'dropdown-trigger-badge' }, exampleData[activeExample].badge),
+                  h(Icon, { name: 'chevron', className: 'dropdown-chevron' })
+                ),
+                dropdownOpen && h('div', { className: 'custom-dropdown-popup' },
+                  Object.entries(exampleData).map(([id, item]) =>
+                    h('button', {
+                      key: id,
+                      type: 'button',
+                      className: `custom-dropdown-item ${activeExample === id ? 'is-selected' : ''}`,
+                      onClick: () => {
+                        loadExample(id);
+                        setDropdownOpen(false);
+                      }
+                    },
+                      h('span', { className: `item-icon-box ${item.category}` }, h(Icon, { name: item.icon })),
+                      h('span', { className: 'item-text-wrap' },
+                        h('strong', { className: 'item-title' }, item.title),
+                        h('span', { className: 'item-desc' }, item.description)
+                      ),
+                      h('span', { className: 'item-meta-wrap' },
+                        h('span', { className: 'item-pill' }, item.badge),
+                        activeExample === id && h('span', { className: 'item-check' }, h(Icon, { name: 'check' }))
+                      )
+                    )
+                  )
+                )
+              )
+            ),
+
+            // EDITOR CARD
+            h('div', { className: 'editor-card' },
+              h('div', { className: 'editor-meta' },
+                h('span', null, h('span', { className: 'language-dot' }), definition.name),
+                h('div', null,
+                  h('button', { className: 'icon-button', onClick: handleFormatCode, title: 'Beautify code' }, h(Icon, { name: 'sparkles' })),
+                  h('button', { className: 'icon-button', onClick: () => { navigator.clipboard.writeText(code); triggerToast('Program copied!'); }, title: 'Copy code' }, h(Icon, { name: 'copy' })),
+                  h('button', { className: 'icon-button', onClick: () => loadExample(activeExample, true), title: 'Reset example' }, h(Icon, { name: 'reset' }))
+                )
+              ),
+              h('div', { className: 'code-area' },
+                h('pre', { ref: lineNumbersRef, 'aria-hidden': true }, lineNumbers),
+                h('div', { className: 'code-stack' },
+                  h('pre', { ref: highlightRef, 'aria-hidden': true, dangerouslySetInnerHTML: { __html: syntaxHTML } }),
+                  h('textarea', {
+                    ref: textareaRef,
+                    value: code,
+                    onChange: e => setCode(e.target.value.slice(0, 100000)),
+                    spellCheck: false,
+                    autoCapitalize: 'off',
+                    autoComplete: 'off',
+                    autoCorrect: 'off'
+                  })
+                )
+              ),
+              h('div', { className: 'editor-footer' },
+                h('span', null, `Ln ${code.split('\n').length}, Col 1`),
+                h('span', null, `UTF-8 · .${definition.extension}`)
+              )
+            ),
+
+            // RUN TOOLBAR
+            h('div', { className: 'run-toolbar' },
+              h('div', { className: 'run-hint' }, h(Icon, { name: 'bolt' }), h('span', null, 'Runs instantly in your browser')),
+              h('div', { className: 'run-buttons' },
+                execution.status === 'running'
+                  ? h('button', { className: 'button danger', onClick: stopRun }, h(Icon, { name: 'stop' }), 'Stop')
+                  : h('button', { className: 'button primary', onClick: runProgram }, h(Icon, { name: 'play' }), h('span', null, 'Run program'), h('kbd', null, 'Ctrl ↵'))
+              )
+            ),
+
+            // OUTPUT TERMINAL
+            h('section', { className: `output-card ${execution.status === 'success' ? 'has-success' : execution.status === 'error' ? 'has-error' : ''}` },
+              execution.status === 'running' && h('div', { className: 'run-progress-bar' }),
+              h('div', { className: 'panel-header' },
+                h('div', { className: 'terminal-title-group' },
+                  h('div', { className: 'terminal-dots' },
+                    h('span', { className: 'terminal-dot dot-red' }),
+                    h('span', { className: 'terminal-dot dot-yellow' }),
+                    h('span', { className: 'terminal-dot dot-green' })
+                  ),
+                  h('h2', null, h(Icon, { name: 'terminal' }), 'Output')
+                ),
+                h('div', { className: 'output-actions' },
+                  h('span', { className: `execution-status ${execution.status}` },
+                    execution.status === 'running' ? 'Running…' : execution.status === 'success' ? `Completed · ${execution.duration} ms · ${execution.steps} steps` : execution.status === 'error' ? `Error on line ${execution.error?.line || 1}` : 'Ready when you are'
+                  ),
+                  h('button', { className: 'icon-button', onClick: () => { navigator.clipboard.writeText(execution.output.join('\n')); triggerToast('Output copied!'); }, title: 'Copy output' }, h(Icon, { name: 'copy' })),
+                  h('button', { className: 'icon-button', onClick: () => setExecution({ status: 'idle', output: [], duration: 0, steps: 0, error: null }), title: 'Clear output' }, h(Icon, { name: 'trash' }))
+                )
+              ),
+              h('div', { className: 'output-content' },
+                execution.output.length === 0 && !execution.error
+                  ? h('p', { className: 'empty-output' }, 'Your next idea starts with a run.', h('br'), h('span', null, 'Press Run program to see the result here.'))
+                  : execution.output.map((line, idx) => h('div', { key: idx, className: 'output-line' }, line || ' ')),
+                execution.error && h('div', { className: 'output-error' }, `Line ${execution.error.line || 1}: ${execution.error.message}`)
+              )
+            ),
+
+            // STDIN PANEL
+            h('details', { className: 'input-panel' },
+              h('summary', null,
+                h('span', null, h(Icon, { name: 'input' }), 'Program input'),
+                h('span', { className: 'muted' }, 'For programs that ask questions')
+              ),
+              h('label', null, 'Enter one answer per line, in the order your program asks.'),
+              h('textarea', {
+                rows: 3,
+                value: stdin,
+                onChange: e => setStdin(e.target.value),
+                placeholder: 'Josiah',
+                spellCheck: false
+              })
+            )
+          ),
+
+          // SIDE PANEL
+          h('aside', { className: 'studio-aside' },
+            // MASCOT CARD
+            h('div', { className: 'mascot-card' },
+              h('div', { className: 'mascot-ambient-halo' }),
+              h('div', { className: 'mascot-copy' },
+                h('span', { className: 'mini-label' }, 'YOUR CODING PAL'),
+                h('h2', null, 'Meet Byte', h('br'), 'your companion.'),
+                h('div', { className: 'mascot-speech speech-pop' }, mascot.speech),
+                h('div', { className: 'mascot-controls' },
+                  h('button', { className: 'mascot-btn', onClick: () => { setMascot({ pose: 'wave', speech: "Beep boop! Hello world! Byte here! 🤖👋", badge: 'HELLO!' }); playSound('run', soundEnabled); } }, h(Icon, { name: 'smile' }), 'Say Hi'),
+                  h('button', { className: 'mascot-btn', onClick: () => { const nextIdx = (tipIdx + 1) % codingTips.length; setTipIdx(nextIdx); setMascot({ pose: 'pointing', speech: `💡 Tip: ${codingTips[nextIdx]}`, badge: 'PRO TIP' }); playSound('run', soundEnabled); } }, h(Icon, { name: 'bulb' }), 'Tip'),
+                  h('button', { className: 'mascot-btn', onClick: () => { setMascot({ pose: 'celebrate', speech: "Yaaay! Keep building awesome things! 🌟🎉", badge: 'CHEER!' }); playSound('cheer', soundEnabled); launchConfetti(); } }, h(Icon, { name: 'sparkles' }), 'Cheer')
+                )
+              ),
+              h('div', { className: 'mascot-avatar-wrap' },
+                h('img', {
+                  src: mascotPoses[mascot.pose] || mascotPoses.idle,
+                  alt: 'Byte companion robot',
+                  width: 145, height: 145,
+                  className: 'mascot-img mascot-floating',
+                  onClick: () => {
+                    const nextIdx = (tipIdx + 1) % codingTips.length;
+                    setTipIdx(nextIdx);
+                    setMascot({ pose: 'celebrate', speech: `💡 ${codingTips[nextIdx]}`, badge: 'BYTE' });
+                    playSound('cheer', soundEnabled);
+                    launchConfetti();
+                  }
+                }),
+                h('div', { className: `mascot-mood-badge ${mascot.badge === 'RUNNING' ? 'badge-running' : mascot.badge === 'SUCCESS' ? 'badge-success' : mascot.badge === 'CHECK CODE' ? 'badge-error' : ''}` }, mascot.badge)
+              )
+            ),
+
+            // DEFINITION CARD
+            h('section', { className: 'definition-card' },
+              h('div', { className: 'panel-header' }, h('h2', null, 'Your language'), h('span', { className: 'version' }, 'v1.0')),
+              h('div', { className: 'language-identity' },
+                h('span', { className: 'language-logo' }, definition.name.charAt(0).toUpperCase()),
+                h('div', null, h('h3', { className: 'language-name' }, definition.name), h('span', { className: 'file-extension' }, `.${definition.extension} files`)),
+                h('button', { className: 'icon-button', onClick: () => navigate('rules'), title: 'Edit rules' }, h(Icon, { name: 'edit' }))
+              ),
+              h('div', { className: 'rule-caption' }, 'YOUR KEYWORDS'),
+              h('div', { className: 'keyword-preview' },
+                ['print', 'let', 'if', 'for', 'in', 'end'].map(k =>
+                  h('div', { key: k, className: 'keyword-row' },
+                    h('span', null, descriptors[k][0]),
+                    h('code', null, definition.keywords[k] || window.LangLab.defaults[k])
+                  )
+                )
+              ),
+              h('button', { className: 'button outline full', onClick: () => navigate('rules') }, h(Icon, { name: 'sliders' }), 'Customize language')
+            ),
+
+            // TIP CARD
+            h('div', {
+              className: 'tip-card',
+              onClick: () => {
+                const nextIdx = (tipIdx + 1) % codingTips.length;
+                setTipIdx(nextIdx);
+                playSound('run', soundEnabled);
+              }
+            },
+              h('span', { className: 'tip-icon' }, h(Icon, { name: 'bulb' })),
+              h('div', null,
+                h('h3', null, 'A little syntax, a lot of possibility'),
+                h('p', null, codingTips[tipIdx])
+              )
+            )
+          )
+        ),
+
+        // RULES PAGE
+        activePage === 'rules' && h('section', { className: 'rules-layout surface' },
+          h('form', {
+            onSubmit: e => {
+              e.preventDefault();
+              const form = e.target;
+              const nextDef = {
+                name: form.elements['language-name'].value.trim(),
+                extension: form.elements['language-extension'].value.trim(),
+                keywords: Object.fromEntries(Object.keys(window.LangLab.defaults).map(k => [k, form.elements[`kw-${k}`].value.trim()]))
+              };
+              const issues = window.LangLab.validate(nextDef);
+              if (issues.length) {
+                triggerToast(issues[0]);
+                playSound('error', soundEnabled);
+                return;
+              }
+              const remappedCode = remap(code, definition.keywords, nextDef.keywords);
+              setDefinition(nextDef);
+              setCode(remappedCode);
+              navigate('playground');
+              triggerToast('Language rules applied! Current program remapped.');
+              setMascot({ pose: 'celebrate', speech: 'Rules updated successfully! Your program now speaks your custom language!', badge: 'SUCCESS' });
+              playSound('success', soundEnabled);
+              launchConfetti();
+            }
+          },
+            h('div', { className: 'section-intro' },
+              h('span', { className: 'step-number' }, '01'),
+              h('div', null, h('h2', null, 'Give it an identity'), h('p', null, 'The name and extension travel with your downloaded language.'))
+            ),
+            h('div', { className: 'identity-fields' },
+              h('label', null, 'Language name', h('input', { name: 'language-name', defaultValue: definition.name, required: true })),
+              h('label', null, 'File extension', h('div', { className: 'extension-input' }, h('span', null, '.'), h('input', { name: 'language-extension', defaultValue: definition.extension, required: true })))
+            ),
+            h('div', { className: 'section-intro border-top' },
+              h('span', { className: 'step-number' }, '02'),
+              h('div', null, h('h2', null, 'Make the words your own'), h('p', null, 'Choose a unique keyword for each action.'))
+            ),
+            h('div', { className: 'keyword-fields' },
+              Object.entries(descriptors).map(([k, [label, hint]]) =>
+                h('div', { key: k, className: 'keyword-field' },
+                  h('label', { htmlFor: `kw-${k}` }, label),
+                  h('input', { id: `kw-${k}`, name: `kw-${k}`, defaultValue: definition.keywords[k] || window.LangLab.defaults[k], required: true }),
+                  h('small', null, hint)
+                )
+              )
+            ),
+            h('div', { className: 'form-actions' },
+              h('span', null, 'Applying rules updates keywords in your current program.'),
+              h('button', { type: 'submit', className: 'button primary' }, h(Icon, { name: 'check' }), 'Apply language rules')
+            )
+          )
+        ),
+
+        // EXAMPLES PAGE
+        activePage === 'examples' && h('section', null,
+          h('div', { className: 'examples-hero surface' },
+            h('div', { className: 'examples-hero-copy' },
+              h('span', { className: 'eyebrow' }, 'READY-TO-RUN CODE'),
+              h('h2', null, 'Explore Language Features'),
+              h('p', null, 'Click any example to load it into the playground.'),
+              h('div', { className: 'example-filters' },
+                ['all', 'loops', 'basics', 'math', 'interactive'].map(filter =>
+                  h('button', {
+                    key: filter,
+                    className: `filter-pill ${activeFilter === filter ? 'active' : ''}`,
+                    onClick: () => setActiveFilter(filter)
+                  }, filter.charAt(0).toUpperCase() + filter.slice(1))
+                )
+              )
+            ),
+            h('img', { src: 'assets/welcome.png', alt: 'Byte welcome', width: 170, height: 170, className: 'mascot-floating' })
+          ),
+          h('div', { className: 'examples-grid' },
+            Object.entries(exampleData)
+              .filter(([_, item]) => activeFilter === 'all' || item.category === activeFilter)
+              .map(([id, item], i) =>
+                h('article', { key: id, className: `example-card ${activeExample === id ? 'active-card' : ''}` },
+                  h('div', { className: 'example-card-top' },
+                    h('span', { className: 'example-number' }, `0${i + 1} / ${item.tag}`),
+                    h('span', { className: 'category-tag' }, item.category.toUpperCase())
+                  ),
+                  h('h2', null, item.title),
+                  h('p', null, item.description),
+                  h('pre', null, remap(item.source, window.LangLab.defaults, definition.keywords)),
+                  h('div', { className: 'example-actions' },
+                    h('button', { className: 'button primary small', onClick: () => { loadExample(id, true); navigate('playground'); } }, h(Icon, { name: 'play' }), 'Try in editor'),
+                    h('button', { className: 'icon-button copy-example-btn', onClick: () => { navigator.clipboard.writeText(remap(item.source, window.LangLab.defaults, definition.keywords)); triggerToast('Copied example code!'); } }, h(Icon, { name: 'copy' }))
+                  )
+                )
+              )
+          )
+        ),
+
+        // DOWNLOADS PAGE
+        activePage === 'downloads' && h('section', null,
+          h('div', { className: 'download-hero surface' },
+            h('div', null,
+              h('span', { className: 'eyebrow' }, 'YOURS, ONLINE AND OFFLINE'),
+              h('h2', null, 'From your browser', h('br'), 'to your computer.'),
+              h('p', null, `Everything you need to write and run ${definition.name} programs.`),
+              h('button', { className: 'button primary', onClick: handleDownloadKit }, h(Icon, { name: 'download' }), 'Download language kit')
+            ),
+            h('img', { src: 'assets/trophy.png', alt: 'Byte trophy', width: 220, height: 220, className: 'mascot-floating' })
+          ),
+          h('div', { className: 'download-options' },
+            h('article', { className: 'surface' },
+              h('div', { className: 'card-icon' }, h(Icon, { name: 'laptop' })),
+              h('span', { className: 'mini-label purple' }, 'EASIEST WAY'),
+              h('h2', null, 'Double-click and run'),
+              h('ol', null,
+                h('li', null, 'Download and extract the ZIP.'),
+                h('li', null, 'Open RUN.html in Chrome or Edge.'),
+                h('li', null, 'Edit your program and press Run.')
+              ),
+              h('div', { className: 'info-strip' }, 'Works offline. No installation required.')
+            ),
+            h('article', { className: 'surface' },
+              h('div', { className: 'card-icon' }, h(Icon, { name: 'terminal' })),
+              h('span', { className: 'mini-label purple' }, 'FOR YOUR TERMINAL'),
+              h('h2', null, 'Run it from a command'),
+              h('p', null, 'With Node.js 18 or newer installed, open a terminal in the extracted folder:'),
+              h('pre', null, `node cli.cjs hello.${definition.extension}`),
+              h('p', null, 'Your language definition and interpreter are included.')
+            )
+          )
+        ),
+
+        // REFERENCE PAGE
+        activePage === 'reference' && h('section', null,
+          h('div', { className: 'guide-intro surface' },
+            h('img', { src: 'assets/pointing.png', alt: 'Byte pointing', width: 80, height: 80, className: 'guide-mascot' }),
+            h('div', null,
+              h('h2', null, 'A small language with room for big ideas.'),
+              h('p', null, 'Numbers, text, booleans, lists, variables, conditions, loops, functions, and built-in helpers.')
+            )
+          ),
+          h('div', { className: 'reference-grid' },
+            [
+              ['Values & variables', 'Numbers, quoted text, booleans, and lists. Join text with +.', `${definition.keywords.let} name = "Josiah"\n${definition.keywords.let} ready = ${definition.keywords.true}\n${definition.keywords.print} "Hello, " + name`],
+              ['For loops & ranges', `Iterate through lists or whole number ranges with ${definition.keywords.for} and ${definition.keywords.in}.`, `${definition.keywords.for} fruit ${definition.keywords.in} ["Apple", "Berry"]\n  ${definition.keywords.print} fruit\n${definition.keywords.end}\n\n${definition.keywords.for} i ${definition.keywords.in} range(1, 4)\n  ${definition.keywords.print} "Step " + text(i)\n${definition.keywords.end}`],
+              ['Repeat & while loops', `Repeat a fixed number of times or loop while a condition holds true.`, `${definition.keywords.repeat} 3\n  ${definition.keywords.print} "Keep creating"\n${definition.keywords.end}\n\n${definition.keywords.let} i = 0\n${definition.keywords.while} i < 3\n  ${definition.keywords.print} i\n  i = i + 1\n${definition.keywords.end}`],
+              ['Conditions (when / otherwise)', `Choose a path with ${definition.keywords.if} and ${definition.keywords.else}. Close blocks with ${definition.keywords.end}.`, `${definition.keywords.if} 5 > 3 ${definition.keywords.and} ${definition.keywords.not} ${definition.keywords.false}\n  ${definition.keywords.print} "Yes!"\n${definition.keywords.else}\n  ${definition.keywords.print} "Try again"\n${definition.keywords.end}`],
+              ['Functions & return', `Define reusable logic with parameters and return values.`, `${definition.keywords.function} double(n)\n  ${definition.keywords.return} n * 2\n${definition.keywords.end}\n${definition.keywords.print} double(21)`],
+              ['Input & questions', `Read one answer per line from the Program input box. Convert to numbers with number().`, `${definition.keywords.let} age = number(${definition.keywords.input}("Your age?"))\n${definition.keywords.print} "Next year: " + text(age + 1)`],
+              ['Lists & collections', `Store ordered collections. Add items with push(), remove last with pop().`, `${definition.keywords.let} items = [10, 20]\npush(items, 30)\n${definition.keywords.print} items[0]\n${definition.keywords.print} len(items)\n${definition.keywords.print} pop(items)`],
+              ['Built-in helpers', `18 powerful built-ins: range, push, pop, join, split, upper, lower, floor, ceil, random, reverse, contains, len, number, text, round, sqrt, abs, min, max.`, `${definition.keywords.let} words = split("hello world", " ")\n${definition.keywords.print} upper(words[0])\n${definition.keywords.print} reverse("robot")\n${definition.keywords.print} random(1, 10)\n${definition.keywords.print} contains(words, "world")`]
+            ].map(([title, desc, snippet], idx) =>
+              h('article', { key: idx, className: 'reference-card' },
+                h('h2', null, title),
+                h('p', null, desc),
+                h('pre', null, snippet)
+              )
+            )
+          )
+        )
+      ),
+
+      // TOAST NOTIFICATION
+      toastMsg && h('div', { className: 'toast' }, toastMsg),
+
+      // FLOATING MASCOT FAB
+      h('button', {
+        className: 'mascot-fab',
+        onClick: () => {
+          const nextIdx = (tipIdx + 1) % codingTips.length;
+          setTipIdx(nextIdx);
+          setMascot({ pose: 'wave', speech: `🤖 Byte says: ${codingTips[nextIdx]}`, badge: 'HELLO!' });
+          playSound('run', soundEnabled);
+        }
+      },
+        h('img', { src: 'assets/wave.png', alt: 'Byte wave', width: 46, height: 46, className: 'mascot-fab-img' }),
+        h('span', { className: 'mascot-fab-indicator' })
+      ),
+
+      // CONFETTI CANVAS
+      h('canvas', { id: 'confetti-canvas', className: 'confetti-canvas', 'aria-hidden': true })
+    )
+  );
+}
+
+// Mount React App
+if (typeof ReactDOM !== 'undefined' && ReactDOM.createRoot) {
+  const root = ReactDOM.createRoot(document.getElementById('root'));
+  root.render(h(LangLabReactApp));
 }
