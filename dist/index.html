@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LangLab — Your language, your rules</title>
+  <meta name="description" content="Create your own programming language. Customize keywords, run real programs, and download a complete offline language kit.">
+  <meta name="theme-color" content="#6547ff">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%236547ff'/%3E%3Cpath d='M23 20 11 32l12 12m18-24 12 12-12 12M37 15 27 49' fill='none' stroke='white' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+  <script src="engine.js" defer></script><script src="export.js" defer></script><script src="app.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to workspace</a>
+<aside class="sidebar">
+  <a class="brand" href="#playground" aria-label="LangLab playground"><span class="brand-mark" aria-hidden="true">&lt;/&gt;</span><span>Lang<span class="purple">Lab</span></span></a>
+  <div class="workspace-label">YOUR WORKSPACE</div>
+  <nav aria-label="Workspace">
+    <button class="nav-item active" data-page="playground"><i data-icon="code"></i>Playground<span class="nav-key">01</span></button>
+    <button class="nav-item" data-page="rules"><i data-icon="sliders"></i>Language rules<span class="nav-key">02</span></button>
+    <button class="nav-item" data-page="examples"><i data-icon="layers"></i>Examples</button>
+    <button class="nav-item" data-page="downloads"><i data-icon="download"></i>Download & run</button>
+  </nav>
+  <div class="sidebar-bottom">
+    <div class="tiny-label">A LITTLE HELP?</div>
+    <button class="nav-item" data-page="reference"><i data-icon="book"></i>Language guide</button>
+    <div class="local-note"><span class="local-icon"><i data-icon="laptop"></i></span><div><strong>Your space to create</strong><span>Drafts stay in this browser.</span></div></div>
+  </div>
+</aside>
+<div class="app">
+  <header class="topbar">
+    <div class="breadcrumb-group">
+      <div class="breadcrumb">Workspace <span>/</span> <strong id="breadcrumb">Playground</strong></div>
+      <div class="mascot-mood-pill" id="mascot-mood-pill" title="Companion Status">
+        <span class="mood-indicator pulse-green"></span>
+        <span id="mascot-mood-text">Byte is ready!</span>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button class="button ghost icon-only" id="sound-toggle" aria-label="Toggle sound effects" title="Audio feedback: ON">
+        <i data-icon="volume"></i>
+      </button>
+      <button class="button ghost" id="import-button"><i data-icon="upload"></i><span>Import language</span></button>
+      <button class="button primary small" id="download-top"><i data-icon="download"></i><span>Download language</span></button>
+    </div>
+  </header>
+  <main id="main">
+    <section class="page-heading">
+      <div>
+        <div class="eyebrow">CREATE SOMETHING THAT'S YOURS</div>
+        <h1 id="page-title">Your language. Your rules.</h1>
+        <p id="page-description">Give your ideas a syntax. Then bring them to life.</p>
+      </div>
+      <div class="draft-badge" id="draft-status"><i data-icon="save"></i>Local draft</div>
+    </section>
+    <section id="page-playground" class="page active-page" aria-label="Playground">
+      <div class="studio-grid">
+        <div class="work-column">
+          <div class="workspace-toolbar">
+            <div class="file-tabs">
+              <span class="file-tab"><i data-icon="file"></i><span id="filename">hello.nova</span><span class="file-dot" aria-hidden="true"></span></span>
+            </div>
+            <div class="custom-dropdown-container" id="example-dropdown-container">
+              <button type="button" class="custom-dropdown-trigger" id="example-dropdown-btn" aria-haspopup="listbox" aria-expanded="false" title="Click to browse examples">
+                <span class="dropdown-trigger-icon"><i data-icon="layers"></i></span>
+                <span class="dropdown-trigger-text">
+                  <span class="dropdown-trigger-sub">EXAMPLE</span>
+                  <strong id="dropdown-active-title">Hello, world</strong>
+                </span>
+                <span class="dropdown-trigger-badge" id="dropdown-active-badge">STARTER</span>
+                <i data-icon="chevron" class="dropdown-chevron"></i>
+              </button>
+              <div class="custom-dropdown-popup" id="example-dropdown-popup" role="listbox" hidden>
+                <!-- Section 1: Basics -->
+                <div class="dropdown-section">
+                  <div class="dropdown-section-title">⚡ Basics & Starters</div>
+                  <button type="button" class="custom-dropdown-item is-selected" data-value="welcome" role="option" aria-selected="true">
+                    <span class="item-icon-box basics"><i data-icon="sparkles"></i></span>
+                    <span class="item-text-wrap">
+                      <strong class="item-title">Hello, world</strong>
+                      <span class="item-desc">Variables & your very first output</span>
+                    </span>
+                    <span class="item-meta-wrap">
+                      <span class="item-pill basics">STARTER</span>
+                      <span class="item-check"><i data-icon="check"></i></span>
+                    </span>
+                  </button>
+                  <button type="button" class="custom-dropdown-item" data-value="condition" role="option" aria-selected="false">
+                    <span class="item-icon-box basics"><i data-icon="sliders"></i></span>
+                    <span class="item-text-wrap">
+                      <strong class="item-title">Making decisions</strong>
+                      <span class="item-desc">when and otherwise branch conditions</span>
+                    </span>
+                    <span class="item-meta-wrap">
+                      <span class="item-pill basics">LOGIC</span>
+                      <span class="item-check" hidden><i data-icon="check"></i></span>
+                    </span>
+                  </button>
+                  <button type="button" class="custom-dropdown-item" data-value="function" role="option" aria-selected="false">
+                    <span class="item-icon-box basics"><i data-icon="code"></i></span>
+                    <span class="item-text-wrap">
+                      <strong class="item-title">Your first function</strong>
+                      <span class="item-desc">Reusable fn with parameters & return</span>
+                    </span>
+                    <span class="item-meta-wrap">
+                      <span class="item-pill basics">FUNCTION</span>
+                      <span class="item-check" hidden><i data-icon="check"></i></span>
+                    </span>
+                  </button>
+                </div>
+
+                <!-- Section 2: Loops & For -->
+                <div class="dropdown-section">
+                  <div class="dropdown-section-title">🔁 Loops & For Iteration</div>
+                  <button type="button" class="custom-dropdown-item" data-value="for_loop" role="option" aria-selected="false">
+                    <span class="item-icon-box loops"><i data-icon="bolt"></i></span>
+                    <span class="item-text-wrap">
+                      <strong class="item-title">For loop & range</strong>
+                      <span class="item-desc">Iterate over lists and range() numbers</span>
+                    </span>
+                    <span class="item-meta-wrap">
+                      <span class="item-pill loops">POPULAR</span>
+                      <span class="item-check" hidden><i data-icon="check"></i></span>
+                    </span>
+                  </button>
+                  <button type="button" class="custom-dropdown-item" data-value="fizzbuzz" role="option" aria-selected="false">
+                    <span class="item-icon-box loops"><i data-icon="layers"></i></span>
+                    <span class="item-text-wrap">
+                      <strong class="item-title">FizzBuzz challenge</strong>
+                      <span class="item-desc">Classic algorithm with modulo & conditions</span>
+                    </span>
+                    <span class="item-meta-wrap">
+                      <span class="item-pill loops">ALGORITHM</span>
+                      <span class="item-check" hidden><i data-icon="check"></i></span>
+                    </span>
+                  </button>
+                  <button type="button" class="custom-dropdown-item" data-value="loop" role="option" aria-selected="false">
+                    <span class="item-icon-box loops"><i data-icon="reset"></i></span>
+                    <span class="item-text-wrap">
+                      <strong class="item-title">Loops & variables</strong>
+                      <span class="item-desc">repeat and while block loops</span>
+                    </span>
+                    <span class="item-meta-wrap">
+                      <span class="item-pill loops">LOOPS</span>
+                      <span class="item-check" hidden><i data-icon="check"></i></span>
+                    </span>
+                  </button>
+                </div>
+
+                <!-- Section 3: Collections & Strings -->
+                <div class="dropdown-section">
+                  <div class="dropdown-section-title">📦 Collections & Strings</div>
+                  <button type="button" class="custom-dropdown-item" data-value="list" role="option" aria-selected="false">
+                    <span class="item-icon-box math"><i data-icon="file"></i></span>
+                    <span class="item-text-wrap">
+                      <strong class="item-title">Working with lists</strong>
+                      <span class="item-desc">List indexing, len(), and arrays</span>
+                    </span>
+                    <span class="item-meta-wrap">
+                      <span class="item-pill math">LISTS</span>
+                      <span class="item-check" hidden><i data-icon="check"></i></span>
+                    </span>
+                  </button>
+                  <button type="button" class="custom-dropdown-item" data-value="text_tools" role="option" aria-selected="false">
+                    <span class="item-icon-box interactive"><i data-icon="sparkles"></i></span>
+                    <span class="item-text-wrap">
+                      <strong class="item-title">Text magic & helpers</strong>
+                      <span class="item-desc">upper, lower, split, join, reverse</span>
+                    </span>
+                    <span class="item-meta-wrap">
+                      <span class="item-pill interactive">STRINGS</span>
+                      <span class="item-check" hidden><i data-icon="check"></i></span>
+                    </span>
+                  </button>
+                </div>
+
+                <!-- Section 4: Interactive & Games -->
+                <div class="dropdown-section">
+                  <div class="dropdown-section-title">🎮 Interactive & Games</div>
+                  <button type="button" class="custom-dropdown-item" data-value="input" role="option" aria-selected="false">
+                    <span class="item-icon-box interactive"><i data-icon="input"></i></span>
+                    <span class="item-text-wrap">
+                      <strong class="item-title">Say hello to you</strong>
+                      <span class="item-desc">Ask questions with ask() & convert inputs</span>
+                    </span>
+                    <span class="item-meta-wrap">
+                      <span class="item-pill interactive">INPUT</span>
+                      <span class="item-check" hidden><i data-icon="check"></i></span>
+                    </span>
+                  </button>
+                  <button type="button" class="custom-dropdown-item" data-value="game" role="option" aria-selected="false">
+                    <span class="item-icon-box interactive"><i data-icon="smile"></i></span>
+                    <span class="item-text-wrap">
+                      <strong class="item-title">Number guessing game</strong>
+                      <span class="item-desc">Interactive game with random() and feedback</span>
+                    </span>
+                    <span class="item-meta-wrap">
+                      <span class="item-pill interactive">GAME</span>
+                      <span class="item-check" hidden><i data-icon="check"></i></span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+              <select id="example-picker" class="sr-only" aria-hidden="true" tabindex="-1">
+                <option value="welcome">Hello, world</option>
+                <option value="for_loop">For loop & range</option>
+                <option value="fizzbuzz">FizzBuzz challenge</option>
+                <option value="loop">Loops & variables</option>
+                <option value="condition">Making decisions</option>
+                <option value="input">Say hello to you</option>
+                <option value="function">Your first function</option>
+                <option value="list">Working with lists</option>
+                <option value="text_tools">Text magic & helpers</option>
+                <option value="game">Number guessing game</option>
+              </select>
+            </div>
+          </div>
+          <div class="editor-card">
+            <div class="editor-meta">
+              <span><span class="language-dot"></span><span id="editor-language">Nova</span></span>
+              <div>
+                <button class="icon-button" id="format-code" aria-label="Beautify code" title="Format code"><i data-icon="sparkles"></i></button>
+                <button class="icon-button" id="copy-code" aria-label="Copy code" title="Copy code"><i data-icon="copy"></i></button>
+                <button class="icon-button" id="reset-code" aria-label="Reset current example" title="Reset current example"><i data-icon="reset"></i></button>
+              </div>
+            </div>
+            <div class="code-area">
+              <pre id="line-numbers" aria-hidden="true">1</pre>
+              <div class="code-stack">
+                <pre id="highlight" aria-hidden="true"></pre>
+                <textarea id="code" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-label="Program code"></textarea>
+              </div>
+            </div>
+            <div class="editor-footer">
+              <span id="cursor-location">Ln 1, Col 1</span>
+              <span>UTF-8 <span class="separator">·</span> <span id="extension-label">.nova</span></span>
+            </div>
+          </div>
+          <div class="run-toolbar">
+            <div class="run-hint"><i data-icon="bolt"></i><span>Runs instantly in your browser</span></div>
+            <div class="run-buttons">
+              <button class="button primary" id="run"><i data-icon="play"></i><span>Run program</span><kbd>Ctrl ↵</kbd></button>
+              <button class="button danger" id="stop" hidden><i data-icon="stop"></i>Stop</button>
+            </div>
+          </div>
+          <section class="output-card" aria-label="Program output">
+            <div class="panel-header">
+              <div class="terminal-title-group">
+                <div class="terminal-dots" aria-hidden="true">
+                  <span class="terminal-dot dot-red"></span>
+                  <span class="terminal-dot dot-yellow"></span>
+                  <span class="terminal-dot dot-green"></span>
+                </div>
+                <h2><i data-icon="terminal"></i>Output</h2>
+              </div>
+              <div class="output-actions">
+                <span id="execution-status" class="execution-status">Ready when you are</span>
+                <button class="icon-button" id="copy-output" aria-label="Copy output" title="Copy output"><i data-icon="copy"></i></button>
+                <button class="icon-button" id="clear-output" aria-label="Clear output" title="Clear output"><i data-icon="trash"></i></button>
+              </div>
+            </div>
+            <div id="output" class="output-content" role="log" aria-live="polite">
+              <p class="empty-output">Your next idea starts with a run.<br><span>Press Run program to see the result here.</span></p>
+            </div>
+          </section>
+          <details class="input-panel">
+            <summary><span><i data-icon="input"></i>Program input</span><span class="muted">For programs that ask questions</span></summary>
+            <label for="stdin">Enter one answer per line, in the order your program asks.</label>
+            <textarea id="stdin" rows="3" placeholder="Josiah" spellcheck="false"></textarea>
+          </details>
+        </div>
+        <aside class="studio-aside" aria-label="Language settings">
+          <div class="mascot-card" id="mascot-card">
+            <div class="mascot-copy">
+              <span class="mini-label">YOUR CODING PAL</span>
+              <h2>Meet Byte<br>your companion.</h2>
+              <div class="mascot-speech" id="mascot-speech">Ready to code! Let's build something awesome 🚀</div>
+              <div class="mascot-controls">
+                <button type="button" class="mascot-btn" id="mascot-sayhi"><i data-icon="smile"></i>Say Hi</button>
+                <button type="button" class="mascot-btn" id="mascot-tip"><i data-icon="bulb"></i>Tip</button>
+                <button type="button" class="mascot-btn" id="mascot-cheer"><i data-icon="sparkles"></i>Cheer</button>
+              </div>
+            </div>
+            <div class="mascot-avatar-wrap">
+              <img id="mascot-img" src="assets/robot.png" alt="Purple robot coding companion" width="160" height="160" class="mascot-img mascot-floating">
+              <div class="mascot-mood-badge" id="mascot-badge">READY</div>
+            </div>
+          </div>
+          <section class="definition-card">
+            <div class="panel-header"><h2>Your language</h2><span class="version">v1.0</span></div>
+            <div class="language-identity">
+              <span class="language-logo" aria-hidden="true">N</span>
+              <div><h3 class="language-name">Nova</h3><span class="file-extension">.nova files</span></div>
+              <button class="icon-button" data-page="rules" aria-label="Edit language details"><i data-icon="edit"></i></button>
+            </div>
+            <div class="rule-caption">YOUR KEYWORDS</div>
+            <div id="keyword-preview" class="keyword-preview"></div>
+            <button class="button outline full" data-page="rules"><i data-icon="sliders"></i>Customize language</button>
+          </section>
+          <div class="tip-card" id="tip-card-interactive" role="button" tabindex="0" title="Click for another tip!">
+            <span class="tip-icon"><i data-icon="bulb"></i></span>
+            <div>
+              <h3 id="tip-title">A little syntax, a lot of possibility</h3>
+              <p id="tip-body">Rename <code>say</code> to <code>sol</code>, or <code>for</code> to <code>loop</code>. Click for more tips!</p>
+            </div>
+          </div>
+          <button class="offline-card" data-page="downloads">
+            <i data-icon="laptop"></i>
+            <span><strong>Take your language with you</strong><small>Download. Open. Run offline.</small></span>
+            <i data-icon="download"></i>
+          </button>
+        </aside>
+      </div>
+    </section>
+    <section id="page-rules" class="page" hidden aria-label="Language rules">
+      <form id="rules-form" class="rules-layout">
+        <div class="surface">
+          <div class="section-intro">
+            <span class="step-number">01</span>
+            <div><h2>Give it an identity</h2><p>The name and extension travel with your downloaded language.</p></div>
+          </div>
+          <div class="identity-fields">
+            <label>Language name<input id="language-name" maxlength="40" required placeholder="Nova"></label>
+            <label>File extension<div class="extension-input"><span>.</span><input id="language-extension" maxlength="12" pattern="[a-z][a-z0-9]{0,11}" required placeholder="nova"></div></label>
+          </div>
+          <div class="section-intro border-top">
+            <span class="step-number">02</span>
+            <div><h2>Make the words your own</h2><p>Choose a unique keyword for each action. Letters from any language are welcome.</p></div>
+          </div>
+          <div id="keyword-fields" class="keyword-fields"></div>
+          <div id="rules-error" class="error-message" role="alert" hidden></div>
+          <div class="form-actions">
+            <span>Applying rules updates keywords in your current program.</span>
+            <button class="button primary" type="submit"><i data-icon="check"></i>Apply language rules</button>
+          </div>
+        </div>
+        <aside class="rules-help">
+          <img src="assets/pointing.png" alt="Purple robot pointing to the language rules" width="200" height="200" class="mascot-floating">
+          <h2>A familiar idea.<br>Your own vocabulary.</h2>
+          <p>These words control the language. Loop with <code>for</code> and <code>in</code>, branch with <code>when</code>, and return values easily.</p>
+          <div class="before-after">
+            <span>Instead of</span>
+            <code>for fruit in basket</code>
+            <span>You could write</span>
+            <code>para fruta en canasta</code>
+          </div>
+          <p class="muted">Keywords are case-sensitive. Built-in helpers such as <code>range()</code>, <code>push()</code>, and <code>len()</code> keep their names.</p>
+        </aside>
+      </form>
+    </section>
+    <section id="page-examples" class="page" hidden aria-label="Example programs">
+      <div class="examples-hero surface">
+        <div class="examples-hero-copy">
+          <span class="eyebrow">READY-TO-RUN CODE</span>
+          <h2>Explore Language Features</h2>
+          <p>Click any example to load it into the playground. Custom keywords automatically adapt to your rules!</p>
+          <div class="example-filters" id="example-filters">
+            <button class="filter-pill active" data-filter="all">All examples</button>
+            <button class="filter-pill" data-filter="loops">For & Loops</button>
+            <button class="filter-pill" data-filter="basics">Basics</button>
+            <button class="filter-pill" data-filter="math">Math & Strings</button>
+            <button class="filter-pill" data-filter="interactive">Interactive</button>
+          </div>
+        </div>
+        <img src="assets/welcome.png" alt="Byte welcoming you to examples" width="180" height="180" class="mascot-floating">
+      </div>
+      <div id="examples-grid" class="examples-grid"></div>
+    </section>
+    <section id="page-downloads" class="page" hidden aria-label="Download your language">
+      <div class="download-hero surface">
+        <div>
+          <span class="eyebrow">YOURS, ONLINE AND OFFLINE</span>
+          <h2>From your browser<br>to your computer.</h2>
+          <p>Everything you need to write and run <strong class="language-name">Nova</strong> programs, packed into one ZIP.</p>
+          <button class="button primary" id="download-kit"><i data-icon="download"></i>Download language kit</button>
+          <p class="download-note">No account or API key needed for the offline runner.</p>
+        </div>
+        <img src="assets/trophy.png" alt="Byte celebrating with a trophy" width="220" height="220" class="mascot-floating">
+      </div>
+      <div class="download-options">
+        <article class="surface">
+          <div class="card-icon"><i data-icon="laptop"></i></div>
+          <span class="mini-label purple">EASIEST WAY</span>
+          <h2>Double-click and run</h2>
+          <ol>
+            <li>Download and extract the ZIP.</li>
+            <li>Open <code>RUN.html</code> in Chrome or Edge.</li>
+            <li>Edit your program and press <strong>Run</strong>.</li>
+          </ol>
+          <div class="info-strip">Works offline. No installation required.</div>
+        </article>
+        <article class="surface">
+          <div class="card-icon"><i data-icon="terminal"></i></div>
+          <span class="mini-label purple">FOR YOUR TERMINAL</span>
+          <h2>Run it from a command</h2>
+          <p>With Node.js 18 or newer installed, open a terminal in the extracted folder:</p>
+          <pre id="cli-command">node cli.cjs hello.nova</pre>
+          <p>Your language definition and interpreter are included. The same programs work in both runners.</p>
+        </article>
+      </div>
+      <div class="surface export-row">
+        <div>
+          <h2>Just the essentials?</h2>
+          <p>Keep your rules as JSON, or download your current program.</p>
+        </div>
+        <div>
+          <button class="button outline" id="download-definition"><i data-icon="file"></i>Language JSON</button>
+          <button class="button outline" id="download-program"><i data-icon="code"></i>Current program</button>
+        </div>
+      </div>
+    </section>
+    <section id="page-reference" class="page" hidden aria-label="Language guide">
+      <div class="guide-intro surface">
+        <img src="assets/pointing.png" alt="Byte pointing to guide" width="80" height="80" class="guide-mascot">
+        <div>
+          <h2>A small language with room for big ideas.</h2>
+          <p>Numbers, text, booleans, lists, variables, conditions, for/repeat/while loops, functions, input, and built-in helpers. Examples below use your current keywords.</p>
+        </div>
+      </div>
+      <div id="reference-grid" class="reference-grid"></div>
+      <div class="surface limits">
+        <h2>Good to know</h2>
+        <p>Use <code>#</code> for comments. Indentation makes code readable; your end keyword closes blocks. Lists start at index 0. Keywords and variable names are case-sensitive. Each run starts fresh.</p>
+        <p>Programs run in an isolated worker with execution and output limits. This language has no file, network, or operating-system access. It is a portable interpreted language; the download includes the interpreter.</p>
+      </div>
+    </section>
+    <footer class="footer">
+      <span>Made for the way <strong>you</strong> think.</span>
+      <span>LangLab <span class="separator">·</span> <span id="footer-save">Download your language to keep a permanent copy.</span></span>
+    </footer>
+  </main>
+</div>
+<button class="mascot-fab" id="mascot-fab" aria-label="Interactive Byte companion" title="Byte the Robot">
+  <img src="assets/wave.png" alt="Byte waving" width="48" height="48" class="mascot-fab-img">
+  <span class="mascot-fab-indicator" id="mascot-fab-indicator"></span>
+</button>
+<canvas id="confetti-canvas" class="confetti-canvas" aria-hidden="true"></canvas>
+<input id="import-file" type="file" accept=".json,application/json" hidden>
+<div id="toast" class="toast" role="status" hidden></div>
+</body>
+</html>
